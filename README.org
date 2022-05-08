@@ -1,0 +1,3 @@
+* Giv
+
+Basically [[https://github.com/nmattia/niv][Niv]] for [[https://guix.gnu.org/][Guix]].
