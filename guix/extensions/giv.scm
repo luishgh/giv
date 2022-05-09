@@ -8,6 +8,29 @@
 
   #:export (guix-giv))
 
+
+;;;
+;;; Helpers.
+;;;
+
+(define-syntax-rule (todo! ...)
+  (leave (G_ "not implemented yet!~%")))
+
+
+;;;
+;;; Subcommandas.
+;;;
+
+;; TODO: Support arguments
+(define (bootstrap-project)
+  ;; Bootstrap current dir as a Guix project
+  (todo!))
+
+
+;;;
+;;; Command-line options.
+;;;
+
 (define (show-subcommands)
   (display (G_ "Available commands:\n"))
   (display (G_ "
@@ -39,6 +62,8 @@ Easy dependency management for Guix projects.\n"))
   (category development)
   (synopsis "TODO")
   (match args
+    (("init" args ...)
+     (bootstrap-project))
     ((or ("-h") ("--help"))
      (show-help)
      (exit 0))
