@@ -24,7 +24,13 @@
 ;; TODO: Support arguments
 (define (bootstrap-project)
   ;; Bootstrap current dir as a Guix project
-  (todo!))
+  (mkdir (string-append (getcwd) "/giv"))
+  (let ((port (open-output-file "giv/sources.scm")))
+    ;; TODO: add giv as project dependency
+    (display "Sources(?)\n" port))
+  (let ((port (open-output-file "giv/sources.lock")))
+    ;; TODO: actually lock the sources.scm to real package definitions
+    (display "WE'RE LOCKED (I guess)!\n" port)))
 
 
 ;;;
