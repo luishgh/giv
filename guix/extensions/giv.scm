@@ -1,12 +1,67 @@
 (define-module (guix extensions giv)
+  #:use-module (guix scripts download)
+  #:use-module (guix download)
+  #:use-module (guix packages)
+  #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix scripts)
   #:use-module (guix i18n)
   #:use-module (guix diagnostics)
   #:use-module (guix build utils)
+  #:use-module (guix build-system copy)
 
+  #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 optargs)
 
   #:export (guix-giv))
+
+
+;;;
+;;; Library.
+;;;
+
+;; TODO: actually implement this
+(define (dependency-url->sha256 dependency-url)
+  (unless (string=? dependency-url "https://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz")
+    (error (format #f "Only the hello tarball is supported! Yes, this \
+is idiot, but I don't want to spend time here RN.
+You provided: ~A" dependency-url)))
+  "1ayhp9v4m4rdhjmnl2bq3cibrbqqkgjbl3s7yk2nhlh8vj3ay16g")
+
+(define (dependency->source-package dependency)
+  (let-keywords dependency #f (name
+                               url
+                               type)
+                (unless (eq? type 'tarball)
+                  (error (format #f "Only tarballs are supported ATM! You provided: ~A" type)))
+                (package
+                  ;; Dondle metadata
+                  (name (symbol-append name '-giv))
+                  ;; TODO: truly deal with this
+                  (version "0.0.0-giv") ;; at first, versions shouldn't matter
+                  (synopsis (string-append "giv source: " (symbol->string name)))
+                  (description "A giv source locked.")
+                  (license license:non-copyleft) ;; TODO: what should I do here?
+                  (home-page "")
+                  ;; Real shit
+                  ;; TODO: support something besides tarballs
+                  (build-system copy-build-system)
+                  (source (origin
+                            (method url-fetch)
+                            (uri url)
+                            (sha256 (dependency-url->sha256 url)))))))
+
+(define (dependency->channel-package dependency)
+  (todo!))
+
+(define (dependency->package dependency)
+  (if (eq? (car dependency) 'package)
+      (dependency->channel-package dependency)
+      (dependency->source-package dependency)))
+
+;; ((:name foo) (package bar))
+(define (lock-dependencies dependencies)
+  (map dependency->package dependencies))
 
 
 ;;;
@@ -26,7 +81,7 @@
   ;; Bootstrap current dir as a Guix project
   (mkdir (string-append (getcwd) "/giv"))
   (let ((port (open-output-file "giv/sources.scm")))
-    ;; TODO: add giv as project dependency
+    ;; TODO: add giv as project dependency and choose guix channel commit
     (display "Sources(?)\n" port))
   (let ((port (open-output-file "giv/sources.lock")))
     ;; TODO: actually lock the sources.scm to real package definitions
