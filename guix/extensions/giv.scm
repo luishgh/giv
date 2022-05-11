@@ -20,13 +20,21 @@
 ;;; Library.
 ;;;
 
-;; TODO: actually implement this
+(define (guix-download-wrapper url)
+  (let* ((port (mkstemp "/tmp/giv-XXXXXX"))
+         (ret (begin
+                (cadr (string-split
+                       (with-output-to-string
+                         (lambda _ (guix-download url)))
+                       #\newline)))))
+
+    ;; Janitoring
+    (delete-file (port-filename port))
+    (close-port port)
+    ret))
+
 (define (dependency-url->sha256 dependency-url)
-  (unless (string=? dependency-url "https://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz")
-    (error (format #f "Only the hello tarball is supported! Yes, this \
-is idiot, but I don't want to spend time here RN.
-You provided: ~A" dependency-url)))
-  "1ayhp9v4m4rdhjmnl2bq3cibrbqqkgjbl3s7yk2nhlh8vj3ay16g")
+  (guix-download-wrapper dependency-url))
 
 (define (dependency->source-package dependency)
   (let-keywords dependency #f (name
