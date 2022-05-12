@@ -168,7 +168,7 @@ Easy dependency management for Guix projects.\n"))
 
 (define-command (guix-giv . args)
   (category development)
-  (synopsis "TODO")
+  (synopsis "manage project dependencies")
   (match args
     (("init" args ...)
      (bootstrap-project))
