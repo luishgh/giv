@@ -21,6 +21,8 @@
 ;;;
 
 (define (guix-download-wrapper url)
+  ;; TODO: uncomment this
+  ;; (info (G_ "computing hash for ~a...~%") url)
   (let* ((port (mkstemp "/tmp/giv-XXXXXX"))
          (ret (begin
                 (cadr (string-split
@@ -57,19 +59,56 @@
                   (source (origin
                             (method url-fetch)
                             (uri url)
-                            (sha256 (dependency-url->sha256 url)))))))
+                            (sha256
+                             (base32 (dependency-url->sha256 url))))))))
 
-(define (dependency->channel-package dependency)
-  (todo!))
+(define (source-origin->string origin)
+  (format #f
+          "(origin
+(method ~a)
+(uri \"~a\")
+(sha256
+ ~a))"
+          (string->symbol (string-delete #\* (symbol->string (procedure-name (origin-method origin)))))
+          (origin-uri origin)
+          (content-hash-value (origin-hash origin))))
 
-(define (dependency->package dependency)
+(define (source-package->package-string package)
+  (format #f
+          "(package
+(name ~a)
+(version \"~a\")
+(synopsis \"~a\")
+(description \"~a\")
+(license ~a)
+(home-page \"\")
+(build-system ~a)
+(source ~a))"
+          (symbol->string (package-name package))
+          (package-version package)
+          (package-synopsis package)
+          (package-description package)
+          "license:gpl3" ;; TODO: oh well, licences causing trouble again
+          "copy-build-system"
+          (source-origin->string (package-source package))))
+
+
+(define (dependency->locked-channel-package dependency)
+  (symbol->string
+   (cadr dependency)))
+
+(define (dependency->locked-source-package dependency)
+  (source-package->package-string
+   (dependency->source-package dependency)))
+
+(define (dependency->locked-dependency dependency)
   (if (eq? (car dependency) 'package)
-      (dependency->channel-package dependency)
-      (dependency->source-package dependency)))
+      (dependency->locked-channel-package dependency)
+      (dependency->locked-source-package dependency)))
 
 ;; ((:name foo) (package bar))
 (define (lock-dependencies dependencies)
-  (map dependency->package dependencies))
+  (map dependency->locked-dependency dependencies))
 
 
 ;;;
