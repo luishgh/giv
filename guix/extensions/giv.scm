@@ -123,16 +123,18 @@
 ;;; Subcommandas.
 ;;;
 
-;; TODO: Support arguments
-(define (bootstrap-project)
+(define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
-  (mkdir (string-append (getcwd) "/giv"))
-  (let ((port (open-output-file "giv/sources.scm")))
-    ;; TODO: add giv as project dependency and choose guix channel commit
-    (display "Sources(?)\n" port))
-  (let ((port (open-output-file "giv/sources.lock")))
-    ;; TODO: actually lock the sources.scm to real package definitions
-    (display "WE'RE LOCKED (I guess)!\n" port)))
+  (let ((path (if (null? command-args)
+                  (getcwd)
+                  (canonicalize-path (car command-args)))))
+    (mkdir (string-append path "/giv"))
+    (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
+      ;; TODO: add giv as project dependency and choose guix channel commit
+      (display "Sources(?)\n" port))
+    (let ((port (open-output-file (string-append path "/giv/sources.lock"))))
+      ;; TODO: actually lock the sources.scm to real package definitions
+      (display "WE'RE LOCKED (I guess)!\n" port))))
 
 
 ;;;
@@ -171,7 +173,7 @@ Easy dependency management for Guix projects.\n"))
   (synopsis "manage project dependencies")
   (match args
     (("init" args ...)
-     (bootstrap-project))
+     (bootstrap-project args))
     ((or ("-h") ("--help"))
      (show-help)
      (exit 0))
