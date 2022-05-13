@@ -54,7 +54,7 @@
                   (version "0.0.0-giv") ;; at first, versions shouldn't matter
                   (synopsis (string-append "giv source: " (symbol->string name)))
                   (description "A giv source locked.")
-                  (license license:non-copyleft) ;; TODO: what should I do here?
+                  (license license:non-copyleft) ;; FIXME: what should I do here?
                   (home-page "")
                   ;; Real shit
                   ;; TODO: support something besides tarballs
@@ -79,7 +79,7 @@
 (define (source-package->package-string package)
   (format #f
           "(package
-(name ~a)
+(name \"~a\")
 (version \"~a\")
 (synopsis \"~a\")
 (description \"~a\")
@@ -87,11 +87,11 @@
 (home-page \"\")
 (build-system ~a)
 (source ~a))"
-          (symbol->string (package-name package))
+          (package-name package)
           (package-version package)
           (package-synopsis package)
           (package-description package)
-          "license:gpl3" ;; TODO: oh well, licences causing trouble again
+          "license:gpl3" ;; FIXME: oh well, licences causing trouble again
           "copy-build-system"
           (source-origin->string (package-source package))))
 
@@ -105,7 +105,7 @@
    (dependency->source-package dependency)))
 
 (define (dependency->locked-dependency dependency)
-  (if (eq? (car dependency) 'package)
+  (if (eq? (car dependency) 'channel-package)
       (dependency->locked-channel-package dependency)
       (dependency->locked-source-package dependency)))
 
@@ -113,15 +113,40 @@
 (define (lock-dependencies dependencies)
   (map dependency->locked-dependency dependencies))
 
+;; TODO: add build-system in order to support building the project through Guix
 ;; A Guix project
 (define-record-type* <project>
   project make-project
   project?
   this-project
+  (name project-name)                   ; string
   (channels project-channels (thunked)) ; string
   (dependencies project-dependencies
                 (thunked)
                 (sanitize lock-dependencies)))
+
+;; TODO: add package inputs (aka: dependencies)
+(define (project->package-string project project-path)
+  (format #f
+          "
+(define %source-dir \"~a\")
+
+(package
+(name \"~a\")
+(version \"~a\")
+(synopsis \"~a\")
+(description \"~a\")
+(license ~a)
+(home-page \"\")
+(build-system ~a)
+(source (local-file %source-dir #:recursive? #t)))\n"
+          project-path
+          (project-name project)
+          "0.0.0-dev"
+          ""
+          ""
+          "license:gpl3" ;; FIXME: oh well, licences causing trouble again
+          "trivial-build-system"))
 
 
 ;;;
@@ -136,31 +161,43 @@
 ;;; Subcommandas.
 ;;;
 
+(define (get-guix-channel)
+  (car (filter (lambda (channel)
+                   (eq? (channel-name channel) 'guix))
+                 (current-channels))))
+
 ;; TODO: add giv as project dependency in a way that works ;-;
 (define (write-initial-project port)
   (let ((guix-channel
-         (car
-          (filter (lambda (channel)
-                   (eq? (channel-name channel) 'guix))
-                 (current-channels)))))
+         (get-guix-channel)))
     (format port
   "(project
     (channels
-     (guix . \"~A\"))
+     ('guix . \"~a\"))
     (dependencies
-     (package giv)))" (channel-commit guix-channel))))
+     ('channel-package 'giv)))\n" (channel-commit guix-channel))))
+
+(define (write-initial-sources-lock port project project-path)
+  (display (project->package-string project project-path) port))
 
 (define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
   (let ((path (if (null? command-args)
                   (getcwd)
-                  (canonicalize-path (car command-args)))))
+                  (canonicalize-path (car command-args))))
+        (initial-project
+         (project
+          (name "giv-project")
+          (channels
+           ('guix . (channel-commit (get-guix-channel))))
+          (dependencies
+           ('channel-package 'giv)))))
     (mkdir (string-append path "/giv"))
     (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
       (write-initial-project port))
     (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
       ;; TODO: actually lock the sources.scm to real package definitions
-      (display "WE'RE LOCKED (I guess)!\n" port))))
+      (write-initial-sources-lock port initial-project path))))
 
 
 ;;;
