@@ -1,4 +1,4 @@
-(giv-project
+(project
  (channels
   (guix . "654f878f0b9d2136affa3e3d32da1639e6942a54"))
  (dependencies

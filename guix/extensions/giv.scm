@@ -1,4 +1,6 @@
 (define-module (guix extensions giv)
+  #:use-module (guix channels)
+  #:use-module (guix describe)
   #:use-module (guix scripts download)
   #:use-module (guix download)
   #:use-module (guix packages)
@@ -9,6 +11,7 @@
   #:use-module (guix build utils)
   #:use-module (guix build-system copy)
 
+  #:use-module (guix records)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
   #:use-module (ice-9 optargs)
@@ -110,6 +113,16 @@
 (define (lock-dependencies dependencies)
   (map dependency->locked-dependency dependencies))
 
+;; A Guix project
+(define-record-type* <project>
+  project make-project
+  project?
+  this-project
+  (channels project-channels (thunked)) ; string
+  (dependencies project-dependencies
+                (thunked)
+                (sanitize lock-dependencies)))
+
 
 ;;;
 ;;; Helpers.
@@ -123,6 +136,20 @@
 ;;; Subcommandas.
 ;;;
 
+;; TODO: add giv as project dependency in a way that works ;-;
+(define (write-initial-project port)
+  (let ((guix-channel
+         (car
+          (filter (lambda (channel)
+                   (eq? (channel-name channel) 'guix))
+                 (current-channels)))))
+    (format port
+  "(project
+    (channels
+     (guix . \"~A\"))
+    (dependencies
+     (package giv)))" (channel-commit guix-channel))))
+
 (define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
   (let ((path (if (null? command-args)
@@ -130,9 +157,8 @@
                   (canonicalize-path (car command-args)))))
     (mkdir (string-append path "/giv"))
     (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
-      ;; TODO: add giv as project dependency and choose guix channel commit
-      (display "Sources(?)\n" port))
-    (let ((port (open-output-file (string-append path "/giv/sources.lock"))))
+      (write-initial-project port))
+    (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
       ;; TODO: actually lock the sources.scm to real package definitions
       (display "WE'RE LOCKED (I guess)!\n" port))))
 
