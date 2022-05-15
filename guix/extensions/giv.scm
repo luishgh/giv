@@ -113,7 +113,7 @@
 (define (lock-dependencies dependencies)
   (map dependency->locked-dependency dependencies))
 
-;; TODO: add build-system in order to support building the project through Guix
+;; TODO: sanitize project fields where it is needed
 ;; A Guix project
 (define-record-type* <project>
   project make-project
@@ -122,7 +122,9 @@
   (name project-name)                   ; string
   (channels project-channels (thunked)) ; string
   (dependencies project-dependencies
-                (thunked)))
+                (thunked))
+  (build-system project-build-system
+                (default 'trivial-build-system)))
 
 ;; TODO: add use-modules. Maybe use specification->package for channel packages,
 ;; because having to track where they're defined would suck BAD.
@@ -150,7 +152,7 @@
           ""
           ""
           "license:gpl3" ;; FIXME: oh well, licences causing trouble again
-          "trivial-build-system"
+          (project-build-system project)
           (fold
            (lambda (str prev)
              (string-append prev "\n" str))
