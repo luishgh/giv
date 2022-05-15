@@ -132,6 +132,12 @@
 (define (project->package-string project project-path)
   (format #f
           "
+(use-modules (guix packages)
+(gnu packages)
+((guix licenses) #:prefix license:)
+(guix build-system trivial)
+(guix gexp))
+
 (define %source-dir \"~a\")
 
 (package
