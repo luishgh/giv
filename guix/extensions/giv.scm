@@ -122,10 +122,11 @@
   (name project-name)                   ; string
   (channels project-channels (thunked)) ; string
   (dependencies project-dependencies
-                (thunked)
-                (sanitize lock-dependencies)))
+                (thunked)))
 
-;; TODO: add package inputs (aka: dependencies)
+;; TODO: add use-modules. Maybe use specification->package for channel packages,
+;; because having to track where they're defined would suck BAD.
+;; However, using that would permit typos. Oh well, difficult decisions, who doesn't hate them?
 (define (project->package-string project project-path)
   (format #f
           "
@@ -139,14 +140,39 @@
 (license ~a)
 (home-page \"\")
 (build-system ~a)
-(source (local-file %source-dir #:recursive? #t)))\n"
+(source (local-file %source-dir #:recursive? #t))
+(inputs
+(list
+~a)))\n"
           project-path
           (project-name project)
           "0.0.0-dev"
           ""
           ""
           "license:gpl3" ;; FIXME: oh well, licences causing trouble again
-          "trivial-build-system"))
+          "trivial-build-system"
+          (fold
+           (lambda (str prev)
+             (string-append prev "\n" str))
+           ""
+           (lock-dependencies
+            (project-dependencies project)))))
+
+;; TODO: remove this test
+;; (display (project->package-string
+;;  (project
+;;  (name "sample-project")
+;;  (channels
+;;   '(guix . "654f878f0b9d2136affa3e3d32da1639e6942a54"))
+;;  (dependencies
+;;   '((channel-package hello) ;; This should get the `hello' package from the `guix' channel.
+;;     (#:name hello-tarball
+;;     #:url "https://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz"
+;;     ;; TODO: add support for automatic updates through templates as the one below:
+;;     ;; #:url-template "https://ftp.gnu.org/gnu/hello/hello-<version>.tar.gz"
+;;     #:type tarball)
+
+;;    ))) "/tmp"))
 
 
 ;;;
