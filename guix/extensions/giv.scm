@@ -24,8 +24,7 @@
 ;;;
 
 (define (guix-download-wrapper url)
-  ;; TODO: uncomment this
-  ;; (info (G_ "computing hash for ~a...~%") url)
+  (info (G_ "computing hash for ~a...~%") url)
   (let* ((port (mkstemp "/tmp/giv-XXXXXX"))
          (ret (begin
                 (cadr (string-split
@@ -95,10 +94,10 @@
           "copy-build-system"
           (source-origin->string (package-source package))))
 
-
 (define (dependency->locked-channel-package dependency)
-  (symbol->string
-   (cadr dependency)))
+  (format #f
+          "(specification->package \"~a\")"
+          (cadr dependency)))
 
 (define (dependency->locked-source-package dependency)
   (source-package->package-string
@@ -126,9 +125,10 @@
   (build-system project-build-system
                 (default 'trivial-build-system)))
 
-;; TODO: add use-modules. Maybe use specification->package for channel packages,
-;; because having to track where they're defined would suck BAD.
-;; However, using that would permit typos. Oh well, difficult decisions, who doesn't hate them?
+;; NOTE: In regards to channel-packages. Using specification->package
+;; for channel packages permits typos, so it would be better to latter
+;; change to symbols and import the appropriate modules. However, for
+;; the first impl, it's fine.
 (define (project->package-string project project-path)
   (format #f
           "
