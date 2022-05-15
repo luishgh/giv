@@ -105,9 +105,9 @@
    (dependency->source-package dependency)))
 
 (define (dependency->locked-dependency dependency)
-  (if (eq? (car dependency) 'channel-package)
-      (dependency->locked-channel-package dependency)
-      (dependency->locked-source-package dependency)))
+  (match dependency
+    (('channel-package package) (dependency->locked-channel-package dependency))
+    (_ (dependency->locked-source-package dependency))))
 
 ;; ((:name foo) (package bar))
 (define (lock-dependencies dependencies)
