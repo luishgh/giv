@@ -192,7 +192,9 @@
                    (eq? (channel-name channel) 'guix))
                  (current-channels))))
 
-;; TODO: add giv as project dependency in a way that works ;-;
+;; TODO: add giv as project dependency in a way that works ;-; i have
+;; to check how a guix extension can be packaged. First we could do it
+;; with a custom channel and later propose the addition to guix proper
 (define (write-initial-project port)
   (let ((guix-channel
          (get-guix-channel)))
@@ -215,14 +217,13 @@
          (project
           (name "giv-project")
           (channels
-           ('guix . (channel-commit (get-guix-channel))))
+           `((guix . ,(channel-commit (get-guix-channel)))))
           (dependencies
-           ('channel-package 'giv)))))
+           '((channel-package giv))))))
     (mkdir (string-append path "/giv"))
     (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
       (write-initial-project port))
     (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
-      ;; TODO: actually lock the sources.scm to real package definitions
       (write-initial-sources-lock port initial-project path))))
 
 
