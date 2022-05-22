@@ -53,7 +53,7 @@
                   (version "0.0.0-giv") ;; at first, versions shouldn't matter
                   (synopsis (string-append "giv source: " (symbol->string name)))
                   (description "A giv source locked.")
-                  (license license:non-copyleft) ;; FIXME: what should I do here?
+                  (license license:non-copyleft) ;; FIXME: what should I do here (license)?
                   (home-page "")
                   ;; Real shit
                   ;; TODO: support something besides tarballs
@@ -120,22 +120,24 @@
   this-project
   (name project-name)                   ; string
   (channels project-channels (thunked)) ; string
-  (dependencies project-dependencies
-                (thunked))
-  (build-system project-build-system
-                (default 'trivial-build-system)))
+  (dependencies project-dependencies    ; list of dependencies
+                (thunked)
+                (default '()))
+  (build-system project-build-system    ; symbol
+                (default 'copy-build-system)))
 
 ;; NOTE: In regards to channel-packages. Using specification->package
 ;; for channel packages permits typos, so it would be better to latter
 ;; change to symbols and import the appropriate modules. However, for
 ;; the first impl, it's fine.
+;; TODO: support useful build systems
 (define (project->package-string project project-path)
   (format #f
           "
 (use-modules (guix packages)
 (gnu packages)
 ((guix licenses) #:prefix license:)
-(guix build-system trivial)
+(guix build-system copy)
 (guix gexp))
 
 (define %source-dir \"~a\")
@@ -166,22 +168,6 @@
            (lock-dependencies
             (project-dependencies project)))))
 
-;; TODO: remove this test
-;; (display (project->package-string
-;;  (project
-;;  (name "sample-project")
-;;  (channels
-;;   '(guix . "654f878f0b9d2136affa3e3d32da1639e6942a54"))
-;;  (dependencies
-;;   '((channel-package hello) ;; This should get the `hello' package from the `guix' channel.
-;;     (#:name hello-tarball
-;;     #:url "https://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz"
-;;     ;; TODO: add support for automatic updates through templates as the one below:
-;;     ;; #:url-template "https://ftp.gnu.org/gnu/hello/hello-<version>.tar.gz"
-;;     #:type tarball)
-
-;;    ))) "/tmp"))
-
 
 ;;;
 ;;; Helpers.
@@ -203,31 +189,29 @@
 ;; TODO: add giv as project dependency in a way that works ;-; i have
 ;; to check how a guix extension can be packaged. First we could do it
 ;; with a custom channel and later propose the addition to guix proper
+;; FIXME: at first, I'll just pretend like everyone has giv :P
 (define (write-initial-project port)
   (let ((guix-channel
          (get-guix-channel)))
     (format port
   "(project
     (channels
-     ('guix . \"~a\"))
-    (dependencies
-     ('channel-package 'giv)))\n" (channel-commit guix-channel))))
+     '(guix . \"~a\")))\n" (channel-commit guix-channel))))
 
 (define (write-initial-sources-lock port project project-path)
   (display (project->package-string project project-path) port))
 
+;; TODO: write locked-channels.scm
 (define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
-  (let ((path (if (null? command-args)
+  (let* ((path (if (null? command-args)
                   (getcwd)
                   (canonicalize-path (car command-args))))
         (initial-project
          (project
-          (name "giv-project")
+          (name (basename path))
           (channels
-           `((guix . ,(channel-commit (get-guix-channel)))))
-          (dependencies
-           '((channel-package giv))))))
+           `((guix . ,(channel-commit (get-guix-channel))))))))
     (mkdir (string-append path "/giv"))
     (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
       (write-initial-project port))
@@ -239,6 +223,7 @@
 ;;; Command-line options.
 ;;;
 
+;; TODO update
 (define (show-subcommands)
   (display (G_ "Available commands:\n"))
   (display (G_ "
