@@ -177,27 +177,62 @@
 ;; TODO: make project-string look nicer (aka: correctly indented and all)
 (define (project->project-string project)
   (format #f
-   "(project
+          "(project
      (channels
-      (list ~a))
+      '(~a))
      (dependencies
       (list ~a)))\n"
-   (fold
-    (lambda (str prev)
-      (string-append prev "\n" str))
-    ""
-    (map
-     (lambda (channel-pair)
-       (format #f
-               "(~a . \"~a\")"
-               (car channel-pair)
-               (cdr channel-pair)))
-     (project-channels project)))
-   (if (null? (project-dependencies project))
-       ""
-       (map
-        list->string
-        (project-dependencies project)))))
+          (fold
+           (lambda (str prev)
+             (string-append prev "\n" str))
+           ""
+           (map
+            (lambda (channel-spec)
+              (match channel-spec
+                ((#:name name
+                  #:url url
+                  #:commit commit
+                  #:branch branch) (format #f
+                  "(#:name ~a
+#:url \"~a\"
+#:commit \"~a\"
+#:branch \"~a\")"
+                  name url commit branch))
+                ((#:name name
+                  #:url url
+                  #:commit commit)
+                 (format #f
+                         "(#:name ~a
+#:url \"~a\"
+#:commit \"~a\")"
+                         name url commit))))
+            (project-channels project)))
+          (if (null? (project-dependencies project))
+              ""
+              (map
+               list->string
+               (project-dependencies project)))))
+
+;; ;; TODO: support channel authentication
+(define (lock-project-channels project)
+  (format #f
+          "(list
+~a)\n"
+          (fold
+           (lambda (str prev)
+             (string-append prev "\n" str))
+           ""
+           (map
+            (lambda (channel-spec)
+              (let-keywords channel-spec #f (name url commit (branch "master"))
+                (format #f
+                        "(channel
+(name '~a)
+(url \"~a\")
+(branch \"~a\")
+(commit \"~a\"))"
+                        name url branch commit)))
+            (project-channels project)))))
 
 
 ;;;
@@ -223,7 +258,9 @@
 (define (write-initial-sources-lock port project project-path)
   (display (project->package-string project project-path) port))
 
-;; TODO: write locked-channels.scm
+(define (write-lock-channels port project)
+  (display (lock-project-channels project) port))
+
 ;; TODO: add giv as project dependency in a way that works ;-; i have
 ;; to check how a guix extension can be packaged. First we could do it
 ;; with a custom channel and later propose the addition to guix proper
@@ -231,18 +268,27 @@
 (define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
   (let* ((path (if (null? command-args)
-                  (getcwd)
-                  (canonicalize-path (car command-args))))
-        (initial-project
-         (project
-          (name (basename path))
-          (channels
-           `((guix . ,(channel-commit (get-guix-channel))))))))
-    (mkdir (string-append path "/giv"))
-    (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
-      (write-initial-project port initial-project))
-    (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
-      (write-initial-sources-lock port initial-project path))))
+                   (getcwd)
+                   (canonicalize-path (car command-args))))
+         (initial-project
+          (project
+           (name (basename path))
+           (channels
+            `((#:name guix
+               #:url "https://git.savannah.gnu.org/git/guix.git"
+               #:commit ,(channel-commit (get-guix-channel))))))))
+
+    ;; Check if giv folder is already present
+    (if (file-exists? path)
+        (leave (G_ "giv folder already present at ~a~%") path)
+        (begin
+          (mkdir (string-append path "/giv"))
+          (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
+            (write-initial-project port initial-project))
+          (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
+            (write-initial-sources-lock port initial-project path))
+          (let ((port (open-output-file (string-append path "/giv/locked-channels.scm"))))
+            (write-lock-channels port initial-project))))))
 
 
 ;;;
