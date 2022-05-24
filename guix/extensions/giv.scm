@@ -5,6 +5,7 @@
   #:use-module (guix download)
   #:use-module (guix packages)
   #:use-module ((guix licenses) #:prefix license:)
+  #:use-module ((guix import utils) #:prefix import-utils:)
   #:use-module (guix scripts)
   #:use-module (guix i18n)
   #:use-module (guix diagnostics)
@@ -43,20 +44,21 @@
 (define (dependency->source-package dependency)
   (let-keywords dependency #f (name
                                url
+                               license
                                type)
                 (unless (eq? type 'tarball)
                   (error (format #f "Only tarballs are supported ATM! You provided: ~A" type)))
                 (package
                   ;; Dondle metadata
-                  (name (symbol-append name '-giv))
                   ;; TODO: truly deal with this
                   (version "0.0.0-giv") ;; at first, versions shouldn't matter
                   (synopsis (string-append "giv source: " (symbol->string name)))
                   (description "A giv source locked.")
-                  (license license:non-copyleft) ;; FIXME: what should I do here (license)?
                   (home-page "")
                   ;; Real shit
                   ;; TODO: support something besides tarballs
+                  (name (symbol-append name '-giv))
+                  (license (import-utils:spdx-string->license license))
                   (build-system copy-build-system)
                   (source (origin
                             (method url-fetch)
@@ -90,8 +92,8 @@
           (package-version package)
           (package-synopsis package)
           (package-description package)
-          "license:gpl3" ;; FIXME: oh well, licences causing trouble again
-          "copy-build-system"
+          (package-license package)
+          (package-build-system package)
           (source-origin->string (package-source package))))
 
 (define (dependency->locked-channel-package dependency)
@@ -108,7 +110,6 @@
     (('channel-package package) (dependency->locked-channel-package dependency))
     (_ (dependency->locked-source-package dependency))))
 
-;; ((:name foo) (package bar))
 (define (lock-dependencies dependencies)
   (map dependency->locked-dependency dependencies))
 
@@ -131,6 +132,7 @@
 ;; change to symbols and import the appropriate modules. However, for
 ;; the first impl, it's fine.
 ;; TODO: support useful build systems
+;; TODO: support other VCS than git
 (define (project->package-string project project-path)
   (format #f
           "
@@ -138,6 +140,7 @@
 (gnu packages)
 ((guix licenses) #:prefix license:)
 (guix build-system copy)
+(guix git-download)
 (guix gexp))
 
 (define %source-dir \"~a\")
@@ -150,7 +153,9 @@
 (license ~a)
 (home-page \"\")
 (build-system ~a)
-(source (local-file %source-dir #:recursive? #t))
+(source (local-file %source-dir
+#:recursive? #t
+#:select? (git-predicate %source-dir)))
 (inputs
 (list
 ~a)))\n"
