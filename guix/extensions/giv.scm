@@ -295,19 +295,18 @@
 ;;; Command-line options.
 ;;;
 
-;; TODO update
 (define (show-subcommands)
   (display (G_ "Available commands:\n"))
   (display (G_ "
-    init    bootstrap a Guix project")))
+    init [PATH]    bootstrap a Guix project")))
 
 (define (show-flags)
-  (display (G_ "
-  -m, --manifest=FILE    create project with the manifest from FILE"))
-  (display (G_ "
-  -n, --dry-run          do not actually build the modules"))
+  ;; (display (G_ "
+  ;; -m, --manifest=FILE    create project with the manifest from FILE"))
+  ;; (display (G_ "
+  ;; -n, --dry-run          do not actually build the modules"))
 
-  (newline)
+  ;; (newline)
 
   (display (G_ "
   -h, --help             display this help and exit"))
