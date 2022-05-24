@@ -14,6 +14,7 @@
 
   #:use-module (guix records)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (ice-9 optargs)
 
@@ -173,6 +174,31 @@
            (lock-dependencies
             (project-dependencies project)))))
 
+;; TODO: make project-string look nicer (aka: correctly indented and all)
+(define (project->project-string project)
+  (format #f
+   "(project
+     (channels
+      (list ~a))
+     (dependencies
+      (list ~a)))\n"
+   (fold
+    (lambda (str prev)
+      (string-append prev "\n" str))
+    ""
+    (map
+     (lambda (channel-pair)
+       (format #f
+               "(~a . \"~a\")"
+               (car channel-pair)
+               (cdr channel-pair)))
+     (project-channels project)))
+   (if (null? (project-dependencies project))
+       ""
+       (map
+        list->string
+        (project-dependencies project)))))
+
 
 ;;;
 ;;; Helpers.
@@ -191,22 +217,17 @@
                    (eq? (channel-name channel) 'guix))
                  (current-channels))))
 
-;; TODO: add giv as project dependency in a way that works ;-; i have
-;; to check how a guix extension can be packaged. First we could do it
-;; with a custom channel and later propose the addition to guix proper
-;; FIXME: at first, I'll just pretend like everyone has giv :P
-(define (write-initial-project port)
-  (let ((guix-channel
-         (get-guix-channel)))
-    (format port
-  "(project
-    (channels
-     '(guix . \"~a\")))\n" (channel-commit guix-channel))))
+(define (write-initial-project port project)
+  (display (project->project-string project) port))
 
 (define (write-initial-sources-lock port project project-path)
   (display (project->package-string project project-path) port))
 
 ;; TODO: write locked-channels.scm
+;; TODO: add giv as project dependency in a way that works ;-; i have
+;; to check how a guix extension can be packaged. First we could do it
+;; with a custom channel and later propose the addition to guix proper
+;; FIXME: at first, I'll just pretend like everyone has giv :P
 (define* (bootstrap-project command-args)
   ;; Bootstrap current dir as a Guix project
   (let* ((path (if (null? command-args)
@@ -219,7 +240,7 @@
            `((guix . ,(channel-commit (get-guix-channel))))))))
     (mkdir (string-append path "/giv"))
     (let ((port (open-output-file (string-append path "/giv/sources.scm"))))
-      (write-initial-project port))
+      (write-initial-project port initial-project))
     (let ((port (open-output-file (string-append path "/giv/locked-sources.scm"))))
       (write-initial-sources-lock port initial-project path))))
 
