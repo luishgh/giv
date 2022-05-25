@@ -10,20 +10,27 @@
   #:use-module (guix i18n)
   #:use-module (guix diagnostics)
   #:use-module (guix build utils)
-  #:use-module (guix build-system copy)
+  #:use-module (guix build-system)
+  #:use-module (guix build-system gnu)
 
   #:use-module (guix records)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-26)
   #:use-module (ice-9 match)
   #:use-module (ice-9 optargs)
+  #:use-module (ice-9 textual-ports)
+  #:use-module (ice-9 eval-string)
 
-  #:export (guix-giv))
+  #:export (guix-giv project))
 
 
 ;;;
 ;;; Library.
 ;;;
+
+;; Constants
+(define-once %project-prelude
+  "(use-modules (guix extensions giv))")
 
 (define (guix-download-wrapper url)
   (info (G_ "computing hash for ~a...~%") url)
@@ -47,8 +54,8 @@
                                url
                                license
                                type)
-                (unless (eq? type 'tarball)
-                  (error (format #f "Only tarballs are supported ATM! You provided: ~A" type)))
+                (unless (eq? type 'gnu)
+                  (error (format #f "Only gnu tarballs are supported ATM! You provided: ~A" type)))
                 (package
                   ;; Dondle metadata
                   ;; TODO: truly deal with this
@@ -57,10 +64,10 @@
                   (description "A giv source locked.")
                   (home-page "")
                   ;; Real shit
-                  ;; TODO: support something besides tarballs
+                  ;; TODO: support something besides gnu tarballs
                   (name (symbol-append name '-giv))
                   (license (import-utils:spdx-string->license license))
-                  (build-system copy-build-system)
+                  (build-system gnu-build-system)
                   (source (origin
                             (method url-fetch)
                             (uri url)
@@ -94,7 +101,7 @@
           (package-synopsis package)
           (package-description package)
           (package-license package)
-          (package-build-system package)
+          (symbol-append (build-system-name (package-build-system package)) '-build-system)
           (source-origin->string (package-source package))))
 
 (define (dependency->locked-channel-package dependency)
@@ -141,7 +148,9 @@
 (gnu packages)
 ((guix licenses) #:prefix license:)
 (guix build-system copy)
+(guix build-system gnu)
 (guix git-download)
+(guix download)
 (guix gexp))
 
 (define %source-dir \"~a\")
@@ -178,10 +187,12 @@
 (define (project->project-string project)
   (format #f
           "(project
+     (name \"~a\")
      (channels
       '(~a))
      (dependencies
-      (list ~a)))\n"
+      '~a))\n"
+          (project-name project)
           (fold
            (lambda (str prev)
              (string-append prev "\n" str))
@@ -208,10 +219,8 @@
                          name url commit))))
             (project-channels project)))
           (if (null? (project-dependencies project))
-              ""
-              (map
-               list->string
-               (project-dependencies project)))))
+              "()"
+               (format #f "~s" (project-dependencies project)))))
 
 ;; ;; TODO: support channel authentication
 (define (lock-project-channels project)
@@ -240,7 +249,11 @@
 ;;;
 
 (define-syntax-rule (todo! ...)
-  (leave (G_ "not implemented yet!~%")))
+  (let* ((current-location (current-source-location)))
+    (leave (G_ "~a:~a:~a: not implemented yet!~%")
+           (assq-ref current-location 'filename)
+           (assq-ref current-location 'line)
+           (assq-ref current-location 'column))))
 
 
 ;;;
@@ -279,7 +292,7 @@
                #:commit ,(channel-commit (get-guix-channel))))))))
 
     ;; Check if giv folder is already present
-    (if (file-exists? path)
+    (if (file-exists? (string-append path "/giv"))
         (leave (G_ "giv folder already present at ~a~%") path)
         (begin
           (mkdir (string-append path "/giv"))
@@ -290,6 +303,41 @@
           (let ((port (open-output-file (string-append path "/giv/locked-channels.scm"))))
             (write-lock-channels port initial-project))))))
 
+(define (get-project)
+  (let* ((project-path
+          (if (file-exists? (string-append (getcwd) "/giv"))
+              (getcwd)
+              (leave (G_ "Not inside a giv project!~%"))))
+         (project-string (call-with-input-file (string-append project-path "/giv/sources.scm") get-string-all)))
+    (eval-string (string-append %project-prelude project-string))))
+
+(define (add-channel-dependency current-project name)
+  (project
+   (inherit current-project)
+   (dependencies (append (project-dependencies current-project) `((channel-package ,(string->symbol name)))))))
+
+(define (add-source-dependency current-project name url type license)
+  (project
+   (inherit current-project)
+   (dependencies (append (project-dependencies current-project)
+                         `((#:name ,(string->symbol name)
+                            #:url ,url
+                            #:type ,(string->symbol type)
+                            #:license ,license))))))
+
+(define (add-dependency args)
+  (let* ((current-project (get-project))
+         (new-project
+          (match args
+            ((name) (add-channel-dependency current-project name))
+            ((name url type license) (add-source-dependency current-project name url type license)))))
+    (let ((port (open-output-file (string-append (getcwd) "/giv/sources.scm"))))
+      (write-initial-project port new-project))
+    (let ((port (open-output-file (string-append (getcwd) "/giv/locked-sources.scm"))))
+      (write-initial-sources-lock port new-project (getcwd)))
+    (let ((port (open-output-file (string-append (getcwd) "/giv/locked-channels.scm"))))
+      (write-lock-channels port new-project))))
+
 
 ;;;
 ;;; Command-line options.
@@ -298,7 +346,9 @@
 (define (show-subcommands)
   (display (G_ "Available commands:\n"))
   (display (G_ "
-    init [PATH]    bootstrap a Guix project")))
+    init [PATH]           bootstrap a Guix project"))
+  (display (G_ "
+    add NAME [URL] [TYPE] add a new dependency")))
 
 (define (show-flags)
   ;; (display (G_ "
@@ -328,6 +378,8 @@ Easy dependency management for Guix projects.\n"))
   (match args
     (("init" args ...)
      (bootstrap-project args))
+    (("add" args ...)
+     (add-dependency args))
     ((or ("-h") ("--help"))
      (show-help)
      (exit 0))
