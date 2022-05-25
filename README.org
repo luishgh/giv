@@ -4,7 +4,9 @@ Basically [[https://github.com/nmattia/niv][Niv]] for [[https://guix.gnu.org/][G
 
 * TODO Features
 
-- Define project dependencies through a DSL or manage them through interactive CLI commands.
+Obs: this is currently a checklist of what I would consider necessary for an initial 0.1 release.
+
+- [ ] Basic feature parity with [[https://github.com/nmattia/niv][Niv]] (subcommands specially).
 
 * TODO Install
 
