@@ -328,11 +328,22 @@
     (update-project-files path new-project)))
 
 (define (remove-dependency args)
-  (let* ((path (getcwd))
+  (let* ((dependency-name (car args))
+         (path (getcwd))
          (current-project (get-project))
          (new-project
-          (todo!)))
-    (update-project-files path current-project)))
+          (project
+           (inherit current-project)
+           (dependencies
+            (remove
+             (lambda (dependency)
+               (match dependency
+                 (`(channel-package ,dependency-name) #t)
+                 ((#:name dependency-name ...) #t)
+                 (_ #f)))
+             (project-dependencies current-project))))))
+    (info (G_ "removing ~a...~%") dependency-name)
+    (update-project-files path new-project)))
 
 
 ;;;
