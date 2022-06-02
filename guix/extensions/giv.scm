@@ -135,7 +135,7 @@
   project?
   this-project
   (name project-name)                   ; string
-  (channels project-channels (thunked)) ; string
+  (channels project-channels (thunked)) ; list of <channel>
   (dependencies project-dependencies    ; list of dependencies
                 (thunked)
                 (default '()))
@@ -174,46 +174,38 @@
                                 #:recursive? #t
                                 #:select? (git-predicate %source-dir)))
             (inputs
-             (list ,@(if (not (null? (project-dependencies project)))
-                      (lock-dependencies
-                       (project-dependencies project))
-                      '(#f)))))))
+             ,(if (not (null? (project-dependencies project)))
+                  `(list
+                    ,@(lock-dependencies
+                       (project-dependencies project)))
+                  ''())))))
 
 ;; TODO: make project-string look nicer (aka: correctly indented and all)
 (define (project->project-string project)
-  (format #f
-          "(project
-     (name \"~a\")
-     (channels
-      '(~a))
-     (dependencies
-      '~a))\n"
+  (format #f "\
+(project
+ (name \"~a\")
+ (channels
+  '(~a))
+ (dependencies
+  '~a))\n"
           (project-name project)
           (fold
            (lambda (str prev)
              (string-append prev "\n" str))
            ""
            (map
-            (lambda (channel-spec)
-              (match channel-spec
-                ((#:name name
-                  #:url url
-                  #:commit commit
-                  #:branch branch)
-                 (format #f
-                  "(#:name ~a
-#:url \"~a\"
-#:commit \"~a\"
-#:branch \"~a\")"
-                  name url commit branch))
-                ((#:name name
-                  #:url url
-                  #:commit commit)
-                 (format #f
-                         "(#:name ~a
-#:url \"~a\"
-#:commit \"~a\")"
-                         name url commit))))
+            (lambda (channel)
+             (format #f "\
+(channel
+ (name '~a)
+ (url \"~a\")
+ (commit \"~a\")
+ (branch \"~a\"))"
+                     (channel-name channel)
+                     (channel-url channel)
+                     (channel-commit channel)
+                     (channel-branch channel)))
             (project-channels project)))
           (if (null? (project-dependencies project))
               "()"
@@ -224,13 +216,12 @@
   (format #f
           "~s\n"
           `(list ,@(map
-                    (lambda (channel-spec)
-                      (let-keywords channel-spec #f (name url commit (branch "master"))
-                                    `(channel
-                                      (name ',name)
-                                      (url ,url)
-                                      (branch ,branch)
-                                      (commit ,commit))))
+                    (lambda (channel)
+                      `(channel
+                        (name ',(channel-name channel))
+                        (url ,(channel-url channel))
+                        (branch ,(channel-branch channel))
+                        (commit ,(channel-commit channel))))
                     (project-channels project)))))
 
 
@@ -238,7 +229,7 @@
 ;;; Subcommandas.
 ;;;
 
-(define (get-guix-channel)
+(define (current-guix-channel)
   (car (filter (lambda (channel)
                    (eq? (channel-name channel) 'guix))
                  (current-channels))))
@@ -283,9 +274,11 @@
           (project
            (name (basename path))
            (channels
-            `((#:name guix
-               #:url "https://git.savannah.gnu.org/git/guix.git"
-               #:commit ,(channel-commit (get-guix-channel))))))))
+            (list
+             (channel
+              (name 'guix)
+              (url "https://git.savannah.gnu.org/git/guix.git")
+              (commit (channel-commit (current-guix-channel)))))))))
 
     ;; Check if giv folder is already present
     (if (file-exists? (string-append path %giv-folder-path))
@@ -345,6 +338,12 @@
     (info (G_ "removing ~a...~%") dependency-name)
     (update-project-files path new-project)))
 
+(define (update-project args)
+  (todo!))
+
+(define (modify-dependency args)
+  (todo!))
+
 
 ;;;
 ;;; Command-line interface.
@@ -379,6 +378,7 @@ Easy dependency management for Guix projects.\n"))
   (show-flags)
   (newline))
 
+;; TODO: use parse-command-line for subcommands
 (define-command (guix-giv . args)
   (category development)
   (synopsis "manage project dependencies")
@@ -389,6 +389,10 @@ Easy dependency management for Guix projects.\n"))
      (add-dependency args))
     (("remove" args ...)
      (remove-dependency args))
+    (("update" args ...)
+     (update-project args))
+    (("modify" args ...)
+     (modify-dependency args))
     ((or ("-h") ("--help"))
      (show-help)
      (exit 0))
